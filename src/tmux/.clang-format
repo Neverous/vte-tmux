@@ -1,0 +1,31 @@
+BasedOnStyle:  GNU
+
+IndentWidth:     8
+ConstructorInitializerIndentWidth: 8
+ContinuationIndentWidth: 8
+AccessModifierOffset: -8
+
+BraceWrapping:
+  AfterCaseLabel:  true
+  AfterClass:      false
+  AfterControlStatement: Never
+  AfterEnum:       false
+  AfterFunction:   true
+  AfterNamespace:  false
+  AfterObjCDeclaration: true
+  AfterStruct:     false
+  AfterUnion:      false
+  AfterExternBlock: true
+  BeforeCatch:     false
+  BeforeElse:      false
+  BeforeLambdaBody: false
+  BeforeWhile:     false
+  IndentBraces:    false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+BreakBeforeBraces: Custom
+BinPackArguments: false
+BinPackParameters: false
+PointerAlignment: Left
+BreakBeforeBinaryOperators: None

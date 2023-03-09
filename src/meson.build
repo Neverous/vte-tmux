@@ -149,6 +149,11 @@ sixel_sources = sixel_parser_sources + sixel_context_sources + files(
   'image.hh',
 )
 
+tmux_control_mode_sources = files(
+  'tmux/parser.cc',
+  'tmux/parser.hh',
+)
+
 std_glue_sources = files(
   'std-glue.hh',
 )
@@ -235,6 +240,10 @@ endif
 
 if get_option('sixel')
   libvte_common_sources += sixel_sources
+endif
+
+if get_option('tmux_control_mode')
+  libvte_common_sources += tmux_control_mode_sources
 endif
 
 if systemd_dep.found()

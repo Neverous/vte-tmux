@@ -3558,6 +3558,16 @@ Terminal::process_incoming()
                         break;
 #endif
 
+#if WITH_TMUX_CONTROL_MODE
+                case DataSyntax::TMUX_CONTROL_MODE:
+                        if (!m_tmux_parser->is_confirmed()) {
+                                goto escape_processing;
+                        }
+
+                        process_incoming_tmux_control_mode(context, *chunk);
+                        break;
+#endif
+
                 default:
                         g_assert_not_reached();
                         break;
@@ -3574,6 +3584,7 @@ Terminal::process_incoming()
                         m_incoming_queue.pop();
         }
 
+escape_processing:
 #if VTE_DEBUG
         /* Some safety checks: ensure the visible parts of the buffer
          * are all in the buffer. */
@@ -3938,6 +3949,25 @@ Terminal::process_incoming_decsixel(ProcessingContext& context,
 
 #endif /* WITH_SIXEL */
 
+#if WITH_TMUX_CONTROL_MODE
+void
+Terminal::process_incoming_tmux_control_mode(ProcessingContext& context,
+                                             vte::base::Chunk& chunk)
+{
+        auto const [status, ip] = m_tmux_parser->process_incoming(chunk.begin_reading(),
+                                                                  chunk.end_reading());
+
+        // Update start for data consumed
+        chunk.set_begin_reading(ip);
+
+        if (status != vte::tmux::Parser::Status::CONTINUE) {
+                m_tmux_parser->reset();
+                pop_data_syntax();
+                return;
+        }
+}
+#endif /* WITH_TMUX_CONTROL_MODE */
+
 bool
 Terminal::pty_io_read(int const fd,
                       GIOCondition const condition)
@@ -4234,6 +4264,59 @@ Terminal::feed(std::string_view const& data,
                 start_processing();
 }
 
+/*
+ * Terminal::print:
+ * @data: data
+ *
+ * Prints @data directly to the terminal.
+ */
+void
+Terminal::print(std::string_view const& data)
+{
+        auto ip = reinterpret_cast<const uint8_t*>(data.data());
+        auto iend = reinterpret_cast<const uint8_t*>(data.data() + data.size());
+        vte::base::UTF8Decoder utf8_decoder;
+
+        while (ip < iend) {
+                switch (utf8_decoder.decode(*(ip++))) {
+                case vte::base::UTF8Decoder::REJECT_REWIND:
+                        /* Rewind the stream.
+                         * Note that this will never lead to a loop, since in the
+                         * next round this byte *will* be consumed.
+                         */
+                        --ip;
+                        [[fallthrough]];
+                case vte::base::UTF8Decoder::REJECT:
+                        utf8_decoder.reset();
+                        /* Fall through to insert the U+FFFD replacement character. */
+                        [[fallthrough]];
+                case vte::base::UTF8Decoder::ACCEPT: {
+                        auto cp = utf8_decoder.codepoint();
+                        switch (cp) {
+                        case 0x06: ACK({}); break;
+                        case 0x07: BEL({}); break;
+                        case 0x08: BS({}); break;
+                        case 0x09: HT({}); break;
+                        case 0x0A: LF({}); break;
+                        case 0x0B: VT({}); break;
+                        case 0x0C: FF({}); break;
+                        case 0x0D: CR({}); break;
+                        case 0x1A: SUB({}); break;
+                        default:
+                                insert_char(cp, false, false);
+                                break;
+                        }
+                        break;
+                }
+                }
+        }
+
+        if (m_utf8_decoder.flush())
+                insert_char(m_utf8_decoder.codepoint(), false, true);
+
+        maybe_scroll_to_bottom();
+}
+
 bool
 Terminal::pty_io_write(int const fd,
                        GIOCondition const condition)
@@ -4258,10 +4341,6 @@ Terminal::pty_io_write(int const fd,
 void
 Terminal::send_child(std::string_view const& data)
 {
-        // FIXMEchpe remove
-        if (!m_input_enabled)
-                return;
-
         /* Note that for backward compatibility, we need to emit the
          * ::commit signal even if there is no PTY. See issue vte#222.
          *
@@ -5033,7 +5112,7 @@ Terminal::widget_key_press(vte::platform::KeyEvent const& event)
 				feed_child(_VTE_CAP_ESC, 1);
 			}
 			if (normal_length > 0) {
-				send_child({normal, normal_length});
+				feed_child({normal, normal_length});
 			}
 			g_free(normal);
 		}
@@ -9622,7 +9701,7 @@ Terminal::widget_mouse_scroll(vte::platform::ScrollEvent const& event)
 		if (cnt < 0)
 			cnt = -cnt;
 		for (i = 0; i < cnt; i++) {
-			send_child({normal, normal_length});
+			feed_child({normal, normal_length});
 		}
 		g_free (normal);
                 return true;
@@ -10523,6 +10602,12 @@ Terminal::process(bool emit_adj_changed)
                 emit_adjustment_changed();
 
         bool is_active = !m_incoming_queue.empty();
+#if WITH_TMUX_CONTROL_MODE
+        if (is_active && current_data_syntax() == DataSyntax::TMUX_CONTROL_MODE && !m_tmux_parser->is_confirmed()) {
+                is_active = false;
+        }
+#endif
+
         if (is_active) {
                 if (VTE_MAX_PROCESS_TIME) {
                         time_process_incoming();

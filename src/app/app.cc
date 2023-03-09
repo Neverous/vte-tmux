@@ -74,6 +74,9 @@ public:
         gboolean no_shaping{false};
         gboolean no_shell{false};
         gboolean no_sixel{false};
+#if WITH_TMUX_CONTROL_MODE
+        gboolean tmux_control_mode{false};
+#endif
         gboolean no_systemd_scope{false};
         gboolean no_xfill{false};
         gboolean no_yfill{false};
@@ -717,6 +720,10 @@ public:
                           "Disable spawning a shell inside the terminal", nullptr },
                         { "no-sixel", 0, 0, G_OPTION_ARG_NONE, &no_sixel,
                           "Disable SIXEL images", nullptr },
+#if WITH_TMUX_CONTROL_MODE
+                        { "no-tmux-control-mode", 0, G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &tmux_control_mode,
+                          "Disable tmux control mode support", nullptr },
+#endif
                         { "no-systemd-scope", 0, 0, G_OPTION_ARG_NONE, &no_systemd_scope,
                           "Don't use systemd user scope", nullptr },
                         { "object-notifications", 'N', 0, G_OPTION_ARG_NONE, &object_notifications,
@@ -733,6 +740,10 @@ public:
                           "Specify the number of scrollback-lines (-1 for infinite)", nullptr },
                         { "sixel", 0, G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &no_sixel,
                           "Enable SIXEL images", nullptr },
+#if WITH_TMUX_CONTROL_MODE
+                        { "tmux-control-mode", 0, 0, G_OPTION_ARG_NONE, &tmux_control_mode,
+                          "Enable tmux control mode support", nullptr },
+#endif
                         { "title", 0, 0, G_OPTION_ARG_STRING, &title, "Set the initial title of the window", "TITLE" },
                         { "transparent", 'T', 0, G_OPTION_ARG_INT, &transparency_percent,
                           "Enable the use of a transparent background", "0..100" },
@@ -2482,6 +2493,69 @@ window_find_button_toggled_cb(GtkToggleButton* button,
                 gtk_widget_set_visible(GTK_WIDGET(window->search_popover), active);
 }
 
+/* tmux control mode integration */
+#if WITH_TMUX_CONTROL_MODE
+static void
+dialog_tmux_confirmation_response_cb(GtkDialog *dialog, gint response, VteappWindow* window)
+{
+        gtk_widget_destroy (GTK_WIDGET (dialog));
+        if (response != GTK_RESPONSE_OK) {
+                verbose_print("tmux: control mode denied\n");
+                vte_terminal_set_tmux_control_mode_confirmed (window->terminal, false);
+                return;
+        }
+
+        verbose_print("tmux: entering control mode\n");
+        // FIXMEtmux: Initialize controller to listen for tmux command signals
+        vte_terminal_set_input_enabled (window->terminal, false);
+        char const* hello = "\r\n** tmux control mode started **\r\n\n";
+        vte_terminal_print (window->terminal, hello, strlen (hello));
+
+        vte_terminal_set_tmux_control_mode_confirmed(window->terminal, true);
+}
+
+static gboolean
+window_tmux_control_mode_enter_cb(VteTerminal* terminal,
+                                  VteappWindow* window)
+{
+        verbose_print("tmux: control mode requested\n");
+        // FIXMEtmux: check if not already enabled
+        auto dialog = gtk_message_dialog_new (GTK_WINDOW (window),
+                                              static_cast<GtkDialogFlags>(GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT),
+                                              GTK_MESSAGE_QUESTION,
+                                              GTK_BUTTONS_OK_CANCEL,
+                                              "Terminal \"%s\" requested tmux control mode. Allowed?",
+                                              gtk_window_get_title (GTK_WINDOW (window)));
+
+        g_signal_connect(dialog, "response", G_CALLBACK(dialog_tmux_confirmation_response_cb), window);
+        gtk_widget_show (GTK_WIDGET (dialog));
+        return true;
+}
+
+static void
+window_tmux_control_mode_command_cb(VteTerminal* terminal, const char* command, const char* arguments, VteappWindow* window)
+{
+        // FIXMEtmux: Connect to controller instead
+        vte_terminal_print(terminal, "tmux: ", 6);
+        vte_terminal_print(terminal, command, strlen(command));
+        vte_terminal_print(terminal, " ", 1);
+        vte_terminal_print(terminal, arguments, strlen(arguments));
+        vte_terminal_print(terminal, "\r\n", 2);
+}
+
+static void
+window_tmux_control_mode_exit_cb(VteTerminal* terminal,
+                                 VteappWindow* window)
+{
+        verbose_print("tmux: exiting control mode\n");
+
+        // FIXMEtmux: cleanup tmux stuff
+        char const* bye = "\r\n** tmux control mode finished **\r\n\n";
+        vte_terminal_print (terminal, bye, strlen (bye));
+        vte_terminal_set_input_enabled (terminal, true);
+}
+#endif
+
 G_DEFINE_TYPE(VteappWindow, vteapp_window, GTK_TYPE_APPLICATION_WINDOW)
 
 static void
@@ -2622,6 +2696,14 @@ vteapp_window_constructed(GObject *object)
         if (options.object_notifications)
                 g_signal_connect(window->terminal, "notify", G_CALLBACK(window_notify_cb), window);
 
+#if WITH_TMUX_CONTROL_MODE
+        if (options.tmux_control_mode) {
+                g_signal_connect(window->terminal, "tmux-control-mode-enter", G_CALLBACK(window_tmux_control_mode_enter_cb), window);
+                g_signal_connect(window->terminal, "tmux-control-mode-command", G_CALLBACK(window_tmux_control_mode_command_cb), window);
+                g_signal_connect(window->terminal, "tmux-control-mode-exit", G_CALLBACK(window_tmux_control_mode_exit_cb), window);
+        }
+#endif
+
         /* Settings */
 #if VTE_GTK == 3
         if (options.no_double_buffer) {
@@ -2652,6 +2734,9 @@ vteapp_window_constructed(GObject *object)
         vte_terminal_set_enable_bidi(window->terminal, !options.no_bidi);
         vte_terminal_set_enable_shaping(window->terminal, !options.no_shaping);
         vte_terminal_set_enable_sixel(window->terminal, !options.no_sixel);
+#if WITH_TMUX_CONTROL_MODE
+        vte_terminal_set_enable_tmux_control_mode(window->terminal, options.tmux_control_mode);
+#endif
         vte_terminal_set_enable_fallback_scrolling(window->terminal, !options.no_fallback_scrolling);
         vte_terminal_set_mouse_autohide(window->terminal, true);
         vte_terminal_set_rewrap_on_resize(window->terminal, !options.no_rewrap);

@@ -30,6 +30,7 @@
 #include "vtepty.h"
 #include "vteregex.h"
 #include "vteterminal.h"
+#include "vtetmux.h"
 #include "vtetypebuiltins.h"
 #include "vteversion.h"
 

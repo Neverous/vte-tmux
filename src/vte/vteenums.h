@@ -181,6 +181,7 @@ typedef enum {
  * @VTE_FEATURE_FLAG_ICU: whether VTE was built with ICU support
  * @VTE_FEATURE_FLAG_SYSTEMD: whether VTE was built with systemd support
  * @VTE_FEATURE_FLAG_SIXEL: whether VTE was built with SIXEL support
+ * @VTE_FEATURE_FLAG_TMUX_CONTROL_MODE: whether VTE was built with tmux control mode support
  * @VTE_FEATURE_FLAGS_MASK: mask of all feature flags
  *
  * An enumeration type for features.
@@ -188,12 +189,13 @@ typedef enum {
  * Since: 0.62
  */
 typedef enum /*< skip >*/ {
-        VTE_FEATURE_FLAG_BIDI    = 1ULL << 0,
-        VTE_FEATURE_FLAG_ICU     = 1ULL << 1,
-        VTE_FEATURE_FLAG_SYSTEMD = 1ULL << 2,
-        VTE_FEATURE_FLAG_SIXEL   = 1ULL << 3,
+        VTE_FEATURE_FLAG_BIDI               = 1ULL << 0,
+        VTE_FEATURE_FLAG_ICU                = 1ULL << 1,
+        VTE_FEATURE_FLAG_SYSTEMD            = 1ULL << 2,
+        VTE_FEATURE_FLAG_SIXEL              = 1ULL << 3,
+        VTE_FEATURE_FLAG_TMUX_CONTROL_MODE  = 1ULL << 4,
 
-        VTE_FEATURE_FLAGS_MASK   = 0xFFFFFFFFFFFFFFFFULL, /* force enum to 64 bit */
+        VTE_FEATURE_FLAGS_MASK              = 0xFFFFFFFFFFFFFFFFULL, /* force enum to 64 bit */
 } VteFeatureFlags;
 
 

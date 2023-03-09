@@ -112,3 +112,10 @@ option(
   value: true,
   description: 'Enable Vala bindings',
 )
+
+option(
+  'tmux_control_mode',
+  type: 'boolean',
+  value : false,
+  description: 'Enable tmux control mode support'
+)

@@ -1055,6 +1055,12 @@ try
                         g_value_set_boolean(value, vte_terminal_get_yfill(terminal));
                         break;
 
+#if WITH_TMUX_CONTROL_MODE
+                case PROP_ENABLE_TMUX_CONTROL_MODE:
+                        g_value_set_boolean (value, vte_terminal_get_enable_tmux_control_mode (terminal));
+                        break;
+#endif
+
                 default:
 			G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
 			return;
@@ -1193,6 +1199,12 @@ try
                         vte_terminal_set_yfill(terminal, g_value_get_boolean(value));
                         break;
 
+#if WITH_TMUX_CONTROL_MODE
+                case PROP_ENABLE_TMUX_CONTROL_MODE:
+                        vte_terminal_set_enable_tmux_control_mode (terminal, g_value_get_boolean (value));
+                        break;
+#endif
+
                         /* Not writable */
                 case PROP_CURRENT_DIRECTORY_URI:
                 case PROP_CURRENT_FILE_URI:
@@ -1328,6 +1340,11 @@ vte_terminal_class_init(VteTerminalClass *klass)
 	klass->text_deleted = NULL;
 	klass->text_scrolled = NULL;
 #endif /* VTE_GTK == 3 */
+
+        /* TMUX_CONTROL_MODE */
+        klass->tmux_control_mode_enter = NULL;
+        klass->tmux_control_mode_command = NULL;
+        klass->tmux_control_mode_exit = NULL;
 
 	klass->copy_clipboard = vte_terminal_real_copy_clipboard;
 	klass->paste_clipboard = vte_terminal_real_paste_clipboard;
@@ -1972,6 +1989,68 @@ vte_terminal_class_init(VteTerminalClass *klass)
                                    G_OBJECT_CLASS_TYPE(klass),
                                    g_cclosure_marshal_VOID__VOIDv);
 
+#if WITH_TMUX_CONTROL_MODE
+        /**
+         * VteTerminal::tmux-control-mode-enter:
+         * @vteterminal: the object which received the signal
+         *
+         * Emitted when the tmux control mode is entered in #VteTerminal
+         */
+        signals[SIGNAL_TMUX_CONTROL_MODE_ENTER] =
+                g_signal_new(I_("tmux-control-mode-enter"),
+                             G_OBJECT_CLASS_TYPE(klass),
+                             G_SIGNAL_RUN_LAST,
+                             G_STRUCT_OFFSET(VteTerminalClass, tmux_control_mode_enter),
+                             NULL,
+                             NULL,
+                             _vte_marshal_BOOLEAN__VOID,
+                             G_TYPE_BOOLEAN, 0);
+        g_signal_set_va_marshaller(signals[SIGNAL_TMUX_CONTROL_MODE_ENTER],
+                                   G_OBJECT_CLASS_TYPE(klass),
+                                   _vte_marshal_BOOLEAN__VOIDv);
+
+        /**
+         * VteTerminal::tmux-control-mode-command:
+         * @vteterminal: the object which received the signal
+         * @command: command type string
+         * @arguments: command arguments
+         *
+         * Emitted when the tmux control mode receives a command
+         */
+        signals[SIGNAL_TMUX_CONTROL_MODE_COMMAND] =
+                g_signal_new(I_("tmux-control-mode-command"),
+                             G_OBJECT_CLASS_TYPE(klass),
+                             G_SIGNAL_RUN_LAST,
+                             G_STRUCT_OFFSET(VteTerminalClass, tmux_control_mode_command),
+                             NULL,
+                             NULL,
+                             _vte_marshal_VOID__STRING_STRING,
+                             G_TYPE_NONE, 2, G_TYPE_STRING, G_TYPE_STRING);
+        g_signal_set_va_marshaller(signals[SIGNAL_TMUX_CONTROL_MODE_COMMAND],
+                                   G_OBJECT_CLASS_TYPE(klass),
+                                   _vte_marshal_VOID__STRING_STRINGv);
+
+        /**
+         * VteTerminal::tmux-control-mode-exit:
+         * @vteterminal: the object which received the signal
+         *
+         * Emitted when the tmux control mode is exited in #VteTerminal
+         */
+        signals[SIGNAL_TMUX_CONTROL_MODE_EXIT] =
+                g_signal_new(I_("tmux-control-mode-exit"),
+                             G_OBJECT_CLASS_TYPE(klass),
+                             G_SIGNAL_RUN_LAST,
+                             G_STRUCT_OFFSET(VteTerminalClass, tmux_control_mode_exit),
+                             NULL,
+                             NULL,
+                             g_cclosure_marshal_VOID__VOID,
+                             G_TYPE_NONE, 0);
+        g_signal_set_va_marshaller(signals[SIGNAL_TMUX_CONTROL_MODE_EXIT],
+                                   G_OBJECT_CLASS_TYPE(klass),
+                                   g_cclosure_marshal_VOID__VOIDv);
+
+#endif
+
         /**
          * VteTerminal:allow-bold:
          *
@@ -2460,6 +2539,20 @@ vte_terminal_class_init(VteTerminalClass *klass)
                                      TRUE,
                                      GParamFlags(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY));
 
+#if WITH_TMUX_CONTROL_MODE
+        /**
+         * VteTerminal:enable-tmux-control-mode:
+         *
+         * Controls whether tmux control mode support is enabled.
+         *
+         * Since: FIXMEtmux
+         */
+        pspecs[PROP_ENABLE_TMUX_CONTROL_MODE] =
+                g_param_spec_boolean ("enable-tmux-control-mode", nullptr, nullptr,
+                                      VTE_TMUX_CONTROL_MODE_ENABLED_DEFAULT,
+                                      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY));
+#endif
+
         g_object_class_install_properties(gobject_class, LAST_PROP, pspecs);
 
 #if VTE_GTK == 3
@@ -2549,6 +2642,12 @@ vte_get_features (void) noexcept
 #else
                 "-SIXEL"
 #endif
+                " "
+#if WITH_TMUX_CONTROL_MODE
+                "+TMUX_CONTROL_MODE"
+#else
+                "-TMUX_CONTROL_MODE"
+#endif
 #ifdef __linux__
                 " "
 #if WITH_SYSTEMD
@@ -2581,6 +2680,9 @@ vte_get_feature_flags(void) noexcept
 #endif
 #if WITH_SIXEL
                                VTE_FEATURE_FLAG_SIXEL |
+#endif
+#if WITH_TMUX_CONTROL_MODE
+                               VTE_FEATURE_FLAG_TMUX_CONTROL_MODE |
 #endif
 #ifdef __linux__
 #if WITH_SYSTEMD
@@ -4285,6 +4387,34 @@ try
                 return;
 
         WIDGET(terminal)->feed_child_binary({(char*)data, length});
+}
+catch (...)
+{
+        vte::log_exception();
+}
+
+/**
+ * vte_terminal_print:
+ * @terminal: a #VteTerminal
+ * @data: (array length=length) (element-type guint8) (allow-none): a string in the terminal's current encoding
+ * @length: the length of the string, or -1 to use the full length or a nul-terminated string
+ *
+ * Prints @data directly in the terminal.
+ */
+void
+vte_terminal_print(VteTerminal *terminal,
+                  const char *data,
+                  gssize length) noexcept
+try
+{
+        g_return_if_fail(VTE_IS_TERMINAL(terminal));
+        g_return_if_fail(length == 0 || data != NULL);
+
+        if (length == 0)
+                return;
+
+        auto const len = size_t{length == -1 ? strlen(data) : size_t(length)};
+        WIDGET(terminal)->print({data, len});
 }
 catch (...)
 {
@@ -6886,3 +7016,141 @@ catch (...)
         vte::log_exception();
         return true;
 }
+
+#if WITH_TMUX_CONTROL_MODE
+/**
+ * vte_terminal_set_enable_tmux_control_mode:
+ * @terminal: a #VteTerminal
+ * @enabled: whether to enable tmux control mode support
+ *
+ * Set whether to enable tmux control mode support.
+ *
+ * Since: FIXMEtmux
+ */
+void
+vte_terminal_set_enable_tmux_control_mode(VteTerminal *terminal,
+                                          gboolean enabled) noexcept
+try
+{
+        g_return_if_fail(VTE_IS_TERMINAL(terminal));
+
+        if (WIDGET(terminal)->set_tmux_control_mode_enabled(enabled != FALSE))
+                g_object_notify_by_pspec(G_OBJECT(terminal), pspecs[PROP_ENABLE_TMUX_CONTROL_MODE]);
+}
+catch (...)
+{
+        vte::log_exception();
+}
+
+/**
+ * vte_terminal_get_enable_tmux_control_mode:
+ * @terminal: a #VteTerminal
+ *
+ * Returns: %TRUE if tmux control mode support is enabled, %FALSE otherwise
+ *
+ * Since: FIXMEtmux
+ */
+gboolean
+vte_terminal_get_enable_tmux_control_mode(VteTerminal *terminal) noexcept
+try
+{
+        g_return_val_if_fail(VTE_IS_TERMINAL(terminal), FALSE);
+
+        return WIDGET(terminal)->tmux_control_mode_enabled();
+}
+catch (...)
+{
+        vte::log_exception();
+        return false;
+}
+
+/**
+ * vte_terminal_set_tmux_control_mode_confirmed::
+ * @terminal: a #VteTerminal
+ * @confirmed: whether tmux control mode request was confirmed
+ *
+ * Set whether to allow tmux control mode to enable (in response to tmux-control-mode-enter signal).
+ *
+ * Since: FIXMEtmux
+ */
+void
+vte_terminal_set_tmux_control_mode_confirmed(VteTerminal *terminal, gboolean confirmed) noexcept
+try
+{
+        g_return_if_fail(VTE_IS_TERMINAL(terminal));
+
+        WIDGET(terminal)->set_tmux_control_mode_confirmed(confirmed);
+}
+catch (...)
+{
+        vte::log_exception();
+}
+
+/**
+ * vte_terminal_abort_tmux_control_mode::
+ * @terminal: a #VteTerminal
+ *
+ * Abort tmux control mode if engaged.
+ *
+ * Since: FIXMEtmux
+ */
+void
+vte_terminal_abort_tmux_control_mode(VteTerminal *terminal) noexcept
+try
+{
+        g_return_if_fail(VTE_IS_TERMINAL(terminal));
+
+        WIDGET(terminal)->abort_tmux_control_mode();
+}
+catch (...)
+{
+        vte::log_exception();
+}
+
+
+/**
+ * vte_terminal_set_tmux_parser_default_callback::
+ * @terminal: a #VteTerminal
+ * @callback: callback function to set as default
+ * @data: additional data to passthrough
+ *
+ * Set default tmux parser callback function for handling tmux responses.
+ *
+ * Since: FIXMEtmux
+ */
+void
+vte_terminal_set_tmux_parser_default_callback(VteTerminal *terminal, VteTmuxCommandCallback callback, void *data) noexcept
+try
+{
+        g_return_if_fail(VTE_IS_TERMINAL(terminal));
+
+        WIDGET(terminal)->set_tmux_parser_default_callback(callback, data);
+}
+catch (...)
+{
+        vte::log_exception();
+}
+
+/**
+ * vte_terminal_push_tmux_parser_callback::
+ * @terminal: a #VteTerminal
+ * @callback: callback function to call on next tmux response
+ * @data: additional data to passthrough
+ *
+ * Push tmux parser callback function to handle next tmux response.
+ *
+ * Since: FIXMEtmux
+ */
+void
+vte_terminal_push_tmux_parser_callback(VteTerminal *terminal, VteTmuxCommandCallback callback, void *data) noexcept
+try
+{
+        g_return_if_fail(VTE_IS_TERMINAL(terminal));
+
+        WIDGET(terminal)->push_tmux_parser_callback(callback, data);
+}
+catch (...)
+{
+        vte::log_exception();
+}
+#endif

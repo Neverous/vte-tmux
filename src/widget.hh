@@ -443,6 +443,7 @@ public:
         void feed(std::string_view const& str) { terminal()->feed(str); }
         void feed_child(std::string_view const& str) { terminal()->feed_child(str); }
         void feed_child_binary(std::string_view const& str) { terminal()->feed_child_binary(str); }
+        void print(std::string_view const& str) { terminal()->print(str); }
 
         char *regex_match_check(vte::grid::column_t column,
                                 vte::grid::row_t row,
@@ -553,6 +554,15 @@ public:
                 gtk_widget_queue_allocate(gtk());
                 return true;
         }
+
+#if WITH_TMUX_CONTROL_MODE
+        bool set_tmux_control_mode_enabled(bool enabled) noexcept { return m_terminal->set_tmux_control_mode_enabled(enabled); }
+        bool tmux_control_mode_enabled() const noexcept { return m_terminal->tmux_control_mode_enabled(); }
+        void set_tmux_control_mode_confirmed(bool confirmed) noexcept { m_terminal->set_tmux_control_mode_confirmed(confirmed); }
+        void abort_tmux_control_mode() noexcept { m_terminal->abort_tmux_control_mode(); }
+        void set_tmux_parser_default_callback(VteTmuxCommandCallback callback, void *data) noexcept { m_terminal->set_tmux_parser_default_callback(callback, data); }
+        void push_tmux_parser_callback(VteTmuxCommandCallback callback, void *data) noexcept { m_terminal->push_tmux_parser_callback(callback, data); }
+#endif
 
 protected:
 

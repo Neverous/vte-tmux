@@ -3412,6 +3412,23 @@ Terminal::DECRC(vte::parser::Sequence const& seq)
         restore_cursor();
 }
 
+bool
+Terminal::DECREGIS_OR_TMUX_CONTROL_MODE(vte::parser::Sequence const& seq)
+{
+        /*
+         * DECREGIS - ReGIS graphics or tmux control mode
+         *
+         * References: VT330, https://github.com/tmux/tmux/wiki/Control-Mode
+         */
+
+        if (seq.collect1(0) == 1000)
+                return TMUX_CONTROL_MODE(seq);
+
+        g_assert(seq.is_ripe());
+        DECREGIS(seq);
+        return false;
+}
+
 void
 Terminal::DECREGIS(vte::parser::Sequence const& seq)
 {
@@ -3420,6 +3437,34 @@ Terminal::DECREGIS(vte::parser::Sequence const& seq)
          *
          * References: VT330
          */
+}
+
+bool
+Terminal::TMUX_CONTROL_MODE(vte::parser::Sequence const &seq)
+{
+        /*
+         * TMUX_CONTROL_MODE - tmux control mode
+         *
+         * References: https://github.com/tmux/tmux/wiki/Control-Mode
+         */
+
+        if (seq.is_ripe())
+                return false;
+
+#if WITH_TMUX_CONTROL_MODE
+        if (tmux_control_mode_enabled()) {
+                if (!m_tmux_parser)
+                        m_tmux_parser = std::make_unique<vte::tmux::Parser>(m_terminal);
+
+                if (m_tmux_parser->setup()) {
+                        push_data_syntax(DataSyntax::TMUX_CONTROL_MODE);
+                        return true; /* switching data syntax */
+                }
+        }
+
+#endif
+        m_parser.ignore_until_st();
+        return false;
 }
 
 void

@@ -188,6 +188,7 @@ config_h.set10('WITH_FRIBIDI', get_option('fribidi'))
 config_h.set10('WITH_GNUTLS', get_option('gnutls'))
 config_h.set10('WITH_ICU', get_option('icu'))
 config_h.set10('WITH_SIXEL', get_option('sixel'))
+config_h.set10('WITH_TMUX_CONTROL_MODE', get_option('tmux_control_mode'))
 
 ver = glib_min_req_version.split('.')
 config_h.set('GLIB_VERSION_MIN_REQUIRED', '(G_ENCODE_VERSION(' + ver[0] + ',' + ver[1] + '))')
@@ -697,28 +698,29 @@ configure_file(
 
 output = '\n'
 output += 'Configuration for VTE:\n\n'
-output += '  Version:      ' + vte_version + '\n'
+output += '  Version:           ' + vte_version + '\n'
 output += '\n'
-output += '  C compiler:   ' + cc.get_id() + ' (version ' + cc.version() + ')\n'
-output += '  C++ compiler: ' + cxx.get_id() + ' (version ' + cxx.version() + ')\n'
+output += '  C compiler:        ' + cc.get_id() + ' (version ' + cc.version() + ')\n'
+output += '  C++ compiler:      ' + cxx.get_id() + ' (version ' + cxx.version() + ')\n'
 output += '\n'
-output += '  Coverage:     ' + get_option('b_coverage').to_string() + '\n'
-output += '  Debug:        ' + enable_debug.to_string() + '\n'
+output += '  Coverage:          ' + get_option('b_coverage').to_string() + '\n'
+output += '  Debug:             ' + enable_debug.to_string() + '\n'
 output += '\n'
-output += '  A11y:         ' + get_option('a11y').to_string() + '\n'
-output += '  Docs:         ' + get_option('docs').to_string() + '\n'
-output += '  FRIBIDI:      ' + get_option('fribidi').to_string() + '\n'
-output += '  GNUTLS:       ' + get_option('gnutls').to_string() + '\n'
-output += '  GTK+ 3.0:     ' + get_option('gtk3').to_string() + '\n'
-output += '  GTK+ 4.0:     ' + get_option('gtk4').to_string() + '\n'
-output += '  ICU:          ' + get_option('icu').to_string() + '\n'
-output += '  GIR:          ' + get_option('gir').to_string() + '\n'
-output += '  systemd:      ' + systemd_dep.found().to_string() + '\n'
-output += '  SIXEL:        ' + get_option('sixel').to_string() + '\n'
-output += '  Glade:        ' + get_option('glade').to_string() + '\n'
-output += '  Vala:         ' + get_option('vapi').to_string() + '\n'
+output += '  A11y:              ' + get_option('a11y').to_string() + '\n'
+output += '  Docs:              ' + get_option('docs').to_string() + '\n'
+output += '  FRIBIDI:           ' + get_option('fribidi').to_string() + '\n'
+output += '  GNUTLS:            ' + get_option('gnutls').to_string() + '\n'
+output += '  GTK+ 3.0:          ' + get_option('gtk3').to_string() + '\n'
+output += '  GTK+ 4.0:          ' + get_option('gtk4').to_string() + '\n'
+output += '  ICU:               ' + get_option('icu').to_string() + '\n'
+output += '  GIR:               ' + get_option('gir').to_string() + '\n'
+output += '  systemd:           ' + systemd_dep.found().to_string() + '\n'
+output += '  SIXEL:             ' + get_option('sixel').to_string() + '\n'
+output += '  Glade:             ' + get_option('glade').to_string() + '\n'
+output += '  Vala:              ' + get_option('vapi').to_string() + '\n'
+output += '  tmux_control_mode: ' + get_option('tmux_control_mode').to_string() + '\n'
 output += '\n'
-output += '  Prefix:       ' + get_option('prefix') + '\n'
+output += '  Prefix:            ' + get_option('prefix') + '\n'
 message(output)
 
 # Check stable/unstable status

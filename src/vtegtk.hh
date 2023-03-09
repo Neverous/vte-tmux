@@ -53,6 +53,11 @@ enum {
         SIGNAL_RESTORE_WINDOW,
         SIGNAL_SELECTION_CHANGED,
         SIGNAL_WINDOW_TITLE_CHANGED,
+#if WITH_TMUX_CONTROL_MODE
+        SIGNAL_TMUX_CONTROL_MODE_ENTER,
+        SIGNAL_TMUX_CONTROL_MODE_COMMAND,
+        SIGNAL_TMUX_CONTROL_MODE_EXIT,
+#endif
         LAST_SIGNAL
 };
 extern guint signals[LAST_SIGNAL];
@@ -97,6 +102,9 @@ enum {
         PROP_YALIGN,
         PROP_XFILL,
         PROP_YFILL,
+#if WITH_TMUX_CONTROL_MODE
+        PROP_ENABLE_TMUX_CONTROL_MODE,
+#endif
         LAST_PROP,
 
         /* override properties */

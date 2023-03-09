@@ -78,6 +78,10 @@
 #include "sixel-context.hh"
 #endif
 
+#if WITH_TMUX_CONTROL_MODE
+#include "tmux/parser.hh"
+#endif
+
 enum {
         VTE_BIDI_FLAG_IMPLICIT   = 1 << 0,
         VTE_BIDI_FLAG_RTL        = 1 << 1,
@@ -322,6 +326,9 @@ public:
 #if WITH_SIXEL
                 DECSIXEL,
 #endif
+#if WITH_TMUX_CONTROL_MODE
+                TMUX_CONTROL_MODE,
+#endif
         };
 
         DataSyntax m_primary_data_syntax{DataSyntax::ECMA48_UTF8};
@@ -384,6 +391,10 @@ public:
 
 #if WITH_SIXEL
         std::unique_ptr<vte::sixel::Context> m_sixel_context{};
+#endif
+
+#if WITH_TMUX_CONTROL_MODE
+        std::unique_ptr<vte::tmux::Parser> m_tmux_parser{};
 #endif
 
 	/* Screen data.  We support the normal screen, and an alternate
@@ -762,6 +773,47 @@ public:
         /* BiDi parameters outside of ECMA and DEC private modes */
         guint m_bidi_rtl : 1;
 
+#if WITH_TMUX_CONTROL_MODE
+        /* tmux control mode */
+        bool m_tmux_control_mode_enabled{VTE_TMUX_CONTROL_MODE_ENABLED_DEFAULT};
+
+        bool set_tmux_control_mode_enabled(bool enabled) noexcept
+        {
+                auto const changed = m_tmux_control_mode_enabled != enabled;
+                m_tmux_control_mode_enabled = enabled;
+                return changed;
+        }
+
+        constexpr bool tmux_control_mode_enabled() const noexcept { return m_tmux_control_mode_enabled; }
+        void set_tmux_control_mode_confirmed(bool confirmed) noexcept
+        {
+                if (!confirmed || !m_tmux_parser->confirm()) {
+                        m_tmux_parser->reset();
+                        pop_data_syntax();
+                }
+
+                start_processing();
+        }
+
+        void abort_tmux_control_mode() noexcept
+        {
+                if (m_tmux_parser->is_confirmed()) {
+                        m_tmux_parser->reset();
+                        pop_data_syntax();
+                }
+        }
+
+        void set_tmux_parser_default_callback(VteTmuxCommandCallback callback, void *data)
+        {
+            m_tmux_parser->set_default_callback(callback, data);
+        }
+
+        void push_tmux_parser_callback(VteTmuxCommandCallback callback, void *data)
+        {
+            m_tmux_parser->push_callback(callback, data);
+        }
+#endif
+
 public:
 
         // FIXMEchpe inline!
@@ -840,6 +892,11 @@ public:
         void process_incoming_decsixel(ProcessingContext& context,
                                        vte::base::Chunk& chunk);
         #endif
+        #if WITH_TMUX_CONTROL_MODE
+        void process_incoming_tmux_control_mode(ProcessingContext& context,
+                                                vte::base::Chunk& chunk);
+        #endif
+
         bool process(bool emit_adj_changed);
         inline bool is_processing() const { return m_active_terminals_link != nullptr; }
         void start_processing();
@@ -1049,6 +1106,7 @@ public:
                         size_t length) { assert(data); feed_child({data, length}); }
         void feed_child(std::string_view const& str);
         void feed_child_binary(std::string_view const& data);
+        void print(std::string_view const& data);
 
         bool is_word_char(gunichar c) const;
         bool is_same_class(vte::grid::column_t acol,
@@ -1582,6 +1640,9 @@ public:
 #define _VTE_CMD_HANDLER_R(cmd) \
 	/* inline */ bool cmd (vte::parser::Sequence const& seq);
 #include "parser-cmd-handlers.hh"
+        /* Special sequence handlers */
+        _VTE_CMD_HANDLER_NOP(DECREGIS)
+        _VTE_CMD_HANDLER_R(TMUX_CONTROL_MODE)
 #undef _VTE_CMD_HANDLER
 #undef _VTE_CMD_HANDLER_NOP
 #undef _VTE_CMD_HANDLER_R

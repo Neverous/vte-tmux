@@ -103,6 +103,10 @@ struct _VteTerminalClass {
 	void (*text_scrolled)(VteTerminal* terminal, gint delta);
 #endif /* _VTE_GTK == 3 */
 
+	gboolean (*tmux_control_mode_enter)(VteTerminal* terminal);
+	void (*tmux_control_mode_command)(VteTerminal* terminal, const char* command, const char* arguments);
+	void (*tmux_control_mode_exit)(VteTerminal* terminal);
+
 	/*< protected >*/
 	void (*copy_clipboard)(VteTerminal* terminal);
 	void (*paste_clipboard)(VteTerminal* terminal);
@@ -199,6 +203,11 @@ _VTE_PUBLIC
 void vte_terminal_feed_child(VteTerminal *terminal,
                              const char *text,
                              gssize length) _VTE_CXX_NOEXCEPT _VTE_GNUC_NONNULL(1);
+/* Send data directly to the terminal display. */
+_VTE_PUBLIC
+void vte_terminal_print(VteTerminal *terminal,
+                       const char *data,
+                       gssize length) _VTE_CXX_NOEXCEPT _VTE_GNUC_NONNULL(1);
 
 /* Copy currently-selected text to the clipboard, or from the clipboard to
  * the terminal. */
